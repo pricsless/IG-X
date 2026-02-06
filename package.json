@@ -1,0 +1,17 @@
+{
+  "name": "ig-x-downloader",
+  "version": "2.0.0",
+  "description": "Self-hosted web UI for downloading Instagram & X/Twitter media using gallery-dl",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["instagram", "twitter", "downloader", "gallery-dl"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "socket.io": "^4.7.4"
+  }
+}

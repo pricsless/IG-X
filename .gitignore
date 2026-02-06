@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Downloaded media
+downloads/
+
+# User data (cookies, config, archive)
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log

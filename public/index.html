@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IG-X Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: { 800: '#1a1a2e', 900: '#0f0f1a', 700: '#252542', 600: '#2d2d4a' },
+            accent: { 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed' },
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="dark bg-dark-900 text-gray-100 min-h-screen">
+
+  <div id="toastContainer"></div>
+  <div id="modalRoot"></div>
+
+  <!-- Top Bar -->
+  <header class="bg-dark-800 border-b border-dark-600 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">IG-X</div>
+      <span id="statusBadge" class="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">checking...</span>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="showView('download')" class="nav-btn active" data-view="download">Download</button>
+      <button onclick="showView('cookies')" class="nav-btn" data-view="cookies">Cookies</button>
+      <button onclick="showView('settings')" class="nav-btn" data-view="settings">Settings</button>
+    </div>
+  </header>
+
+  <main class="h-[calc(100vh-53px)] overflow-y-auto p-4">
+
+    <!-- ===== DOWNLOAD VIEW ===== -->
+    <div id="view-download" class="view">
+      <div class="max-w-6xl mx-auto">
+
+        <!-- Top row: platform + content type -->
+        <div class="flex items-center gap-4 mb-4">
+          <div class="flex gap-2">
+            <button onclick="setPlatform('instagram')" id="btn-instagram" class="toggle-btn small active">Instagram</button>
+            <button onclick="setPlatform('twitter')" id="btn-twitter" class="toggle-btn small">X / Twitter</button>
+          </div>
+          <div id="contentTypeGroup" class="flex gap-2">
+            <button onclick="setContentType('posts,reels')" class="toggle-btn small active" data-content="posts,reels">Posts + Reels</button>
+            <button onclick="setContentType('posts')" class="toggle-btn small" data-content="posts">Posts Only</button>
+            <button onclick="setContentType('reels')" class="toggle-btn small" data-content="reels">Reels Only</button>
+            <button onclick="setContentType('stories')" class="toggle-btn small" data-content="stories">Stories</button>
+            <button onclick="setContentType('highlights')" class="toggle-btn small" data-content="highlights">Highlights</button>
+          </div>
+        </div>
+
+        <!-- Two columns: left = inputs, right = log -->
+        <div class="grid grid-cols-2 gap-4">
+
+          <!-- Left: inputs -->
+          <div class="space-y-3">
+            <div class="card">
+              <label class="label">Usernames</label>
+              <textarea id="usernames" rows="3" placeholder="One per line&#10;username1&#10;username2" class="input-area text-sm"></textarea>
+              <!-- Archive -->
+              <div id="archiveSection" class="hidden mt-2">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs text-gray-500">Recent</span>
+                  <button onclick="clearArchive()" class="text-xs text-red-400 hover:text-red-300 transition">Clear</button>
+                </div>
+                <div id="archiveList" class="flex flex-wrap gap-1"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <label class="label">Single URL</label>
+              <input id="singleUrl" type="text" placeholder="https://www.instagram.com/p/ABC123..." class="input-field text-sm">
+              <p class="text-xs text-gray-500 mt-1">Or paste a direct post/reel URL</p>
+            </div>
+
+            <div class="flex gap-2">
+              <button id="startBtn" onclick="startDownload()" class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold py-2.5 rounded text-sm transition">
+                Start Download
+              </button>
+              <button id="singleBtn" onclick="startSingleDownload()" class="bg-dark-700 hover:bg-dark-600 border border-dark-600 text-gray-300 font-medium py-2.5 px-4 rounded text-sm transition">
+                Download URL
+              </button>
+              <button id="stopBtn" onclick="stopDownload()" class="hidden bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 px-4 rounded text-sm transition">
+                Stop
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: progress -->
+          <div class="card" id="progressPanel">
+            <div class="flex items-center justify-between mb-2">
+              <span class="label mb-0">Live Progress</span>
+              <div class="flex gap-3 text-xs">
+                <span>Files: <strong id="statFiles" class="text-green-400">0</strong></span>
+                <span>Posts: <strong id="statPosts" class="text-blue-400">0</strong></span>
+                <span>Accounts: <strong id="statAccounts" class="text-purple-400">0/0</strong></span>
+              </div>
+            </div>
+            <div id="accountProgress" class="flex flex-wrap gap-1 mb-2"></div>
+            <div id="logOutput" class="log-container"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== COOKIES VIEW ===== -->
+    <div id="view-cookies" class="view hidden">
+      <div class="max-w-3xl mx-auto space-y-4">
+
+        <!-- Warning -->
+        <div class="card border border-red-500/30" style="background:#1a1a2e">
+          <div class="flex items-start gap-2">
+            <span class="text-red-400 text-lg leading-none">&#9888;</span>
+            <div>
+              <p class="text-sm text-red-300 font-semibold mb-1">Use a TEMP account — your main account can get BANNED!</p>
+              <p class="text-xs text-gray-400">Create a throwaway account for downloading. Never use your personal account.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="card border border-yellow-500/20">
+          <h2 class="card-title text-yellow-400 text-sm">How to Get Cookies</h2>
+          <ol class="text-sm text-gray-400 space-y-1 list-decimal list-inside">
+            <li>Install <strong class="text-gray-200">Get cookies.txt LOCALLY</strong> browser extension</li>
+            <li>Log in to Instagram / X with your <strong class="text-yellow-300">temp account</strong> (not your main!)</li>
+            <li>Click the extension and <strong class="text-gray-200">Export</strong> the .txt file</li>
+            <li>Drop it below — cookies expire, so refresh them if downloads fail</li>
+          </ol>
+        </div>
+
+        <!-- Two cookie slots side by side -->
+        <div class="grid grid-cols-2 gap-4">
+
+          <!-- Instagram cookie -->
+          <div class="card">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="card-title mb-0 text-sm">Instagram Cookie</h2>
+              <span id="igCookieStatus" class="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">No cookie</span>
+            </div>
+            <div id="igDropZone" class="drop-zone" data-platform="instagram">
+              <input type="file" accept=".txt,.cookies" class="cookie-file-input">
+              <div class="drop-content">
+                <div class="drop-icon">&#128230;</div>
+                <div class="drop-text">Drop cookies .txt here</div>
+              </div>
+              <div class="drop-preview hidden"></div>
+            </div>
+            <button onclick="deleteCookie('instagram')" id="igDeleteBtn" class="hidden mt-2 text-xs text-red-400 hover:text-red-300 transition">Remove cookie</button>
+          </div>
+
+          <!-- X/Twitter cookie -->
+          <div class="card">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="card-title mb-0 text-sm">X / Twitter Cookie</h2>
+              <span id="xCookieStatus" class="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">No cookie</span>
+            </div>
+            <div id="xDropZone" class="drop-zone" data-platform="twitter">
+              <input type="file" accept=".txt,.cookies" class="cookie-file-input">
+              <div class="drop-content">
+                <div class="drop-icon">&#128230;</div>
+                <div class="drop-text">Drop cookies .txt here</div>
+              </div>
+              <div class="drop-preview hidden"></div>
+            </div>
+            <button onclick="deleteCookie('twitter')" id="xDeleteBtn" class="hidden mt-2 text-xs text-red-400 hover:text-red-300 transition">Remove cookie</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS VIEW ===== -->
+    <div id="view-settings" class="view hidden">
+      <div class="max-w-2xl mx-auto space-y-4">
+        <div class="card">
+          <h2 class="card-title text-sm">gallery-dl</h2>
+          <div class="flex gap-2">
+            <input id="settingsGalleryDlPath" type="text" placeholder="Auto-detected..." class="input-field flex-1 text-sm">
+            <button onclick="detectPath()" class="bg-dark-600 hover:bg-dark-700 text-gray-300 px-3 py-2 rounded text-sm transition">Detect</button>
+          </div>
+          <p id="galleryDlVersion" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title text-sm">Download Options</h2>
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <label class="label">Batch Size</label>
+              <input id="settingsBatchSize" type="number" value="5" min="1" max="10" class="input-field text-sm">
+              <p class="text-xs text-gray-500 mt-1">Concurrent accounts</p>
+            </div>
+            <div>
+              <label class="label">Skip Threshold</label>
+              <input id="settingsMaxAlreadyExists" type="number" value="10" min="1" max="10000" class="input-field text-sm">
+              <p class="text-xs text-gray-500 mt-1">Old files before skip</p>
+            </div>
+            <div>
+              <label class="label">Batch Delay (sec)</label>
+              <input id="settingsBatchDelay" type="number" value="3" min="1" max="60" class="input-field text-sm">
+              <p class="text-xs text-gray-500 mt-1">Pause between batches</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-4 mt-4">
+            <div>
+              <label class="label">Sleep Between Requests</label>
+              <input id="settingsSleepRequest" type="text" value="2-4" placeholder="2-4" class="input-field text-sm">
+              <p class="text-xs text-gray-500 mt-1">Seconds range</p>
+            </div>
+            <div>
+              <label class="label">Retries</label>
+              <input id="settingsRetries" type="number" value="3" min="1" max="10" class="input-field text-sm">
+            </div>
+            <div>
+              <label class="label">Timeout (sec)</label>
+              <input id="settingsTimeout" type="number" value="45" min="10" max="300" class="input-field text-sm">
+            </div>
+          </div>
+          <button onclick="saveSettings()" class="mt-4 bg-purple-600 hover:bg-purple-500 text-white font-medium py-2 px-5 rounded text-sm transition">
+            Save Settings
+          </button>
+        </div>
+
+        <div class="card border border-blue-500/20">
+          <h2 class="card-title text-blue-400 text-sm">Setup</h2>
+          <p class="text-sm text-gray-400 mb-2">If gallery-dl is not installed:</p>
+          <code class="block bg-dark-900 p-2 rounded text-sm text-green-400 select-all">pip install gallery-dl</code>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
